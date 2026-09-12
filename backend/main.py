@@ -63,6 +63,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "VISIONX Engine is running"}
 # Concurrency lock for inference (avoid GPU contention)
 _inference_lock = asyncio.Lock()
 
@@ -94,8 +97,8 @@ def _startup():
         else:
             logger.error("VISIONX Engine initialization failed: %s", svc.last_error)
 
-    import threading
-    threading.Thread(target=_init_model, daemon=True, name="visionx-model-init").start()
+        import threading
+        threading.Thread(target=_init_model, daemon=True, name="visionx-model-init").start()
 
 
 def _img_to_data_url(img: Image.Image, fmt: str = "PNG") -> str:
