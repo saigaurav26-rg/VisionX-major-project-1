@@ -1,8 +1,8 @@
 """
-HRS-Net inference pipeline.
+HRS-Net inference pipeline (Render CPU Optimized).
 - Validates image
-- Adds DWT-compatible padding
-- Runs the cached HRS-Net (tiled for large images to control memory)
+- Fast Downscaling for high-res inputs (CPU safety)
+- Uses torch.inference_mode() & thread limits
 - Clamps output and crops to original dimensions
 """
 
@@ -19,6 +19,17 @@ from backend.services.model_service import get_model_service
 
 logger = logging.getLogger("visionx.inference")
 
+# --- CPU SPEEDUP CONFIGURATIONS ---
+# Render CPU ke resource contention ko kam karne ke liye threads limit karein
+torch.set_num_threads(2)
+
+TILE_PIXEL_THRESHOLD = 1024 * 1024  # 1 MP
+TILE_SIZE = 512
+TILE_OVERLAP = 32
+
+# Max resolution cap to prevent CPU timeouts (e.g., max 1280px side)
+MAX_INFERENCE_DIM = 1280 
+
 
 def load_and_validate(path: str) -> tuple[Image.Image, tuple[int, int]]:
     img = Image.open(path)
@@ -30,34 +41,20 @@ def load_and_validate(path: str) -> tuple[Image.Image, tuple[int, int]]:
 
 
 def _dwt_compatible_pad(h: int, w: int) -> tuple[int, int, int, int]:
-    """Pad to the next multiple of 8.
-
-    Network depth: DWT(÷2) → down1(÷2, total ÷4) → down2(÷2, total ÷8) →
-    up1(×2, ÷4) → up1(×2, ÷2) → IWT(×2). Padding to a multiple of 8 ensures
-    both down1 and down2 layers produce even-sized outputs that the matching
-    up-samples reproduce exactly.
-    """
     pad_h = (8 - h % 8) % 8
     pad_w = (8 - w % 8) % 8
     return 0, pad_w, 0, pad_h  # left, right, top, bottom
 
 
-# Tile threshold (pixels). Images with total pixel count above this are
-# processed in overlapping tiles to keep peak memory bounded.
-TILE_PIXEL_THRESHOLD = 1024 * 1024  # 1 MP
-TILE_SIZE = 512           # spatial size per tile (pixels)
-TILE_OVERLAP = 32         # overlap between adjacent tiles
-
-
 def _infer_single(model, tensor: torch.Tensor, device) -> torch.Tensor:
-    """Run the model on a single padded tensor and return the unpadded tensor."""
-    with torch.no_grad():
+    # torch.no_grad() se fast runtime: inference_mode Enforce karein
+    with torch.inference_mode():
         out = model(tensor.to(device))
     return out
 
 
 def _run_tiled(model, img_tensor: torch.Tensor, device) -> torch.Tensor:
-    """Run HRS-Net tile-by-tile over a large image with overlap-blending."""
+    """Optimized Tiled inference using cached windows."""
     _, _, H, W = img_tensor.shape
     full_out = torch.zeros((1, 3, H, W), dtype=torch.float32)
     weight_sum = torch.zeros((1, 1, H, W), dtype=torch.float32)
@@ -70,25 +67,25 @@ def _run_tiled(model, img_tensor: torch.Tensor, device) -> torch.Tensor:
     if xs[-1] + TILE_OVERLAP < W:
         xs.append(W - TILE_SIZE if W - TILE_SIZE >= 0 else 0)
 
-    # Hann window for smooth blending in the overlap region
+    # Pre-calculated Hann window
     win1d = torch.hann_window(TILE_SIZE)
     win2d = (win1d.unsqueeze(0) * win1d.unsqueeze(1)).unsqueeze(0).unsqueeze(0)
 
-    for y in ys:
-        for x in xs:
-            y0 = min(y, H - TILE_SIZE)
-            x0 = min(x, W - TILE_SIZE)
-            tile = img_tensor[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE]
-            out_tile = _infer_single(model, tile, device).cpu()
-            full_out[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE] += out_tile * win2d
-            weight_sum[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE] += win2d
+    with torch.inference_mode():
+        for y in ys:
+            for x in xs:
+                y0 = min(y, H - TILE_SIZE)
+                x0 = min(x, W - TILE_SIZE)
+                tile = img_tensor[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE]
+                out_tile = model(tile.to(device)).cpu()
+                full_out[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE] += out_tile * win2d
+                weight_sum[:, :, y0:y0 + TILE_SIZE, x0:x0 + TILE_SIZE] += win2d
 
     full_out = full_out / weight_sum.clamp(min=1e-6)
     return full_out
 
 
 def run(image_path: str) -> dict:
-    """Run real HRS-Net inference. Returns metadata + PIL Image."""
     svc = get_model_service()
     if not svc.ready:
         if not svc.initialize():
@@ -97,8 +94,17 @@ def run(image_path: str) -> dict:
     pil_img, (W, H) = load_and_validate(image_path)
     original_size = (W, H)
 
-    pad_l, pad_r, pad_t, pad_b = _dwt_compatible_pad(H, W)
-    tensor = transforms.ToTensor()(pil_img)  # (C, H, W) in [0, 1]
+    # Render CPU Guard: Auto-downscale very large images to avoid 60s timeouts
+    target_img = pil_img
+    if max(W, H) > MAX_INFERENCE_DIM:
+        scale = MAX_INFERENCE_DIM / float(max(W, H))
+        new_w, new_h = int(W * scale), int(H * scale)
+        target_img = pil_img.resize((new_w, new_h), Image.Resampling.BILINEAR)
+
+    t_W, t_H = target_img.size
+    pad_l, pad_r, pad_t, pad_b = _dwt_compatible_pad(t_H, t_W)
+    tensor = transforms.ToTensor()(target_img)
+    
     if pad_l or pad_r or pad_t or pad_b:
         tensor = F.pad(tensor.unsqueeze(0), (pad_l, pad_r, pad_t, pad_b), mode="reflect").squeeze(0)
     input_tensor = tensor.unsqueeze(0)
@@ -110,23 +116,22 @@ def run(image_path: str) -> dict:
     if total_pixels <= TILE_PIXEL_THRESHOLD:
         output = _infer_single(svc.model, input_tensor, svc.device)
     else:
-        logger.info(
-            "Large image %dx%d (%d px) — running tiled inference",
-            W, H, total_pixels,
-        )
+        logger.info("Running tiled inference for %dx%d image", t_W, t_H)
         output = _run_tiled(svc.model, input_tensor, svc.device).to(svc.device)
     elapsed_ms = (time.perf_counter() - start) * 1000.0
 
     output = torch.clamp(output, 0, 1)
     arr = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
-    # Crop back to padded size first, then to original size
-    arr = arr[: H + pad_t + pad_b, : W + pad_l + pad_r]
-    arr = arr[pad_t : pad_t + H, pad_l : pad_l + W]
+    # Unpad cropped region
+    arr = arr[: t_H + pad_t + pad_b, : t_W + pad_l + pad_r]
+    arr = arr[pad_t : pad_t + t_H, pad_l : pad_l + t_W]
 
     derained = Image.fromarray((arr * 255).astype("uint8"))
+    
+    # Upscale back to original resolution if downscaling was applied
     if derained.size != original_size:
-        derained = derained.resize(original_size, Image.LANCZOS)
+        derained = derained.resize(original_size, Image.Resampling.LANCZOS)
 
     return {
         "derained": derained,
