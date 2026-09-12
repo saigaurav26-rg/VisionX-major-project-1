@@ -32,8 +32,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
 
-# Load environment variables (.env file)
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Root folder aur backend folder dono se .env load karein
 load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 from backend.inference import pipeline as inference_pipeline
 from backend.services import (
