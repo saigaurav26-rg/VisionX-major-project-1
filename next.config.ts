@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const backendUrl =
+  process.env.NEXT_PUBLIC_API_URL || "https://visionx-demo-8xgd.onrender.com";
+
 const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
@@ -17,6 +20,14 @@ const nextConfig: NextConfig = {
   ],
   typescript: {
     ignoreBuildErrors: true,
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
   },
 } as NextConfig;
 
