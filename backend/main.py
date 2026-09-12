@@ -26,13 +26,24 @@ import secrets
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
 
+# Load environment variables (.env file)
+load_dotenv()
+
 from backend.inference import pipeline as inference_pipeline
-from backend.services import analysis_service, history_store, image_service, model_service, object_service, vision_service
+from backend.services import (
+    analysis_service,
+    history_store,
+    image_service,
+    model_service,
+    object_service,
+    vision_service,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,6 +68,17 @@ def _startup():
     logger.info("=" * 60)
     logger.info("VISIONX Engine starting...")
     logger.info("=" * 60)
+    
+    # Ensure database connection URL is properly set for Supabase / PostgreSQL
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+            os.environ["DATABASE_URL"] = db_url
+        logger.info("Connecting backend database to Cloud PostgreSQL/Supabase...")
+    else:
+        logger.warning("DATABASE_URL variable missing in .env! Falling back to local/default configuration.")
+
     image_service.ensure_dirs()
     history_store.init()
 
@@ -70,7 +92,6 @@ def _startup():
 
     import threading
     threading.Thread(target=_init_model, daemon=True, name="visionx-model-init").start()
-
 
 
 def _img_to_data_url(img: Image.Image, fmt: str = "PNG") -> str:
