@@ -1,0 +1,35 @@
+/**
+ * Mount once in the document shell so the Grok preview chrome can drive
+ * navigation. Noops when the app is not embedded.
+ */
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { installPreviewHostBridge } from "@/lib/preview-host-bridge";
+
+const ROUTES = [
+  "/",
+  "/dashboard",
+  "/app",
+  "/model",
+  "/history",
+  "/docs",
+  "/settings",
+  "/applications",
+];
+
+export function PreviewHostBridge() {
+  const router = useRouter();
+
+  useEffect(() => {
+    return installPreviewHostBridge({
+      navigate: (path) => {
+        router.push(path);
+      },
+      getRoutePaths: () => ROUTES,
+    });
+  }, [router]);
+
+  return null;
+}
