@@ -12,9 +12,6 @@ Endpoints:
 - POST /api/analyze/xray
 - POST /api/analyze/objects
 - POST /api/vision-assistant
-
-All inference uses the cached, strict-loaded HRS-Net model.
-Analysis endpoints operate on stored inference results when available.
 """
 
 import asyncio
@@ -24,6 +21,7 @@ import logging
 import os
 import secrets
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,10 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
 
-from pathlib import Path
-from dotenv import load_dotenv
-
-# Root folder aur backend folder dono se .env load karein
+# Load environment variables
 load_dotenv()
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -55,27 +50,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("visionx.api")
 
-app = FastAPI(title="VISIONX API", version="1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-@app.get("/")
-def read_root():
-    return {"status": "online", "message": "VISIONX Engine is running"}
-# Concurrency lock for inference (avoid GPU contention)
-_inference_lock = asyncio.Lock()
-
-
-@app.on_event("startup")
-def _startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern Lifespan handler: Guarantees model is loaded before API receives traffic."""
     logger.info("=" * 60)
     logger.info("VISIONX Engine starting...")
     logger.info("=" * 60)
-    
+
     # Ensure database connection URL is properly set for Supabase / PostgreSQL
     db_url = os.getenv("DATABASE_URL")
     if db_url:
@@ -84,21 +66,39 @@ def _startup():
             os.environ["DATABASE_URL"] = db_url
         logger.info("Connecting backend database to Cloud PostgreSQL/Supabase...")
     else:
-        logger.warning("DATABASE_URL variable missing in .env! Falling back to local/default configuration.")
+        logger.warning("DATABASE_URL variable missing in .env! Falling back to local configuration.")
 
     image_service.ensure_dirs()
     history_store.init()
 
-    def _init_model():
-        svc = model_service.get_model_service()
-        ok = svc.initialize()
-        if ok:
-            logger.info("VISIONX Engine ready.")
-        else:
-            logger.error("VISIONX Engine initialization failed: %s", svc.last_error)
+    # Direct synchronous model initialization on application start
+    logger.info("Loading PyTorch model weights...")
+    svc = model_service.get_model_service()
+    if svc.initialize():
+        logger.info("VISIONX Engine model successfully loaded and ready.")
+    else:
+        logger.error("VISIONX Engine model initialization failed: %s", svc.last_error)
 
-        import threading
-        threading.Thread(target=_init_model, daemon=True, name="visionx-model-init").start()
+    yield
+    logger.info("VISIONX Engine shutting down...")
+
+
+app = FastAPI(title="VISIONX API", version="1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+_inference_lock = asyncio.Lock()
+
+
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "VISIONX Engine is running"}
 
 
 def _img_to_data_url(img: Image.Image, fmt: str = "PNG") -> str:
@@ -121,28 +121,13 @@ def _perform_inference(filename: str, data: bytes) -> dict:
     input_path = image_service.save_upload(filename, data)
     try:
         result = inference_pipeline.run(str(input_path))
-    except torch.cuda.OutOfMemoryError as e:
-        logger.exception("CUDA OOM")
-        raise HTTPException(
-            status_code=507,
-            detail=f"Insufficient GPU memory for this image. Try a smaller image or use CPU. ({e})",
-        )
-    except RuntimeError as e:
-        logger.exception("Inference RuntimeError")
-        msg = str(e)
-        if "Sizes of tensors must match" in msg or "shape" in msg.lower():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Image dimensions are not supported by the model: {msg[:200]}",
-            )
-        raise HTTPException(status_code=500, detail=f"Inference error: {msg[:300]}")
     except Exception as e:
         logger.exception("Inference error")
         raise HTTPException(status_code=500, detail=f"Inference failed: {type(e).__name__}: {e}")
 
     output_path = image_service.save_output(filename, result["derained"], fmt="PNG")
-
     entry_id = secrets.token_hex(8)
+
     history_store.add_entry(
         {
             "id": entry_id,
@@ -231,7 +216,6 @@ def delete_history(entry_id: str):
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     history_store.delete_entry(entry_id)
-    # Best-effort file cleanup
     for k in ("output_path", "original_path"):
         try:
             p = Path(entry.get(k, ""))
@@ -244,7 +228,6 @@ def delete_history(entry_id: str):
 
 @app.get("/api/image/{name}")
 def get_image(name: str):
-    """Serve a stored image by sanitized filename (uploads or outputs)."""
     safe = image_service.secure_filename(name)
     for d in (image_service.OUTPUT_DIR, image_service.UPLOAD_DIR):
         p = d / safe
@@ -255,14 +238,12 @@ def get_image(name: str):
 
 @app.post("/api/analyze/restoration")
 async def analyze_restoration(file: UploadFile = File(...), derained_file: UploadFile = File(None)):
-    """Compute restoration metrics and return data URLs of residual/detail maps."""
     filename, data = _read_upload(file)
     original = Image.open(io.BytesIO(data)).convert("RGB")
     if derained_file is not None:
         _, ddata = _read_upload(derained_file)
         derained = Image.open(io.BytesIO(ddata)).convert("RGB")
     else:
-        # Re-run inference
         path = image_service.save_upload(filename, data)
         result = inference_pipeline.run(str(path))
         derained = result["derained"]
@@ -324,7 +305,7 @@ async def analyze_objects(file: UploadFile = File(...), derained_file: UploadFil
     return {
         "success": True,
         "regions": regions,
-        "detector": "VisionX saliency/contrast analysis (indicative, not a general object detector)",
+        "detector": "VisionX saliency/contrast analysis",
         "original_url": _img_to_data_url(original),
         "derained_url": _img_to_data_url(derained),
         "overlay_url": _img_to_data_url(overlay),
@@ -358,7 +339,6 @@ async def blend(
     derained_id: str = Query(...),
     alpha: float = Query(1.0, ge=0.0, le=1.0),
 ):
-    """Apply Restoration Strength blending: output = (1-α)*original + α*derained."""
     op = image_service.OUTPUT_DIR / image_service.secure_filename(original_id)
     dp = image_service.OUTPUT_DIR / image_service.secure_filename(derained_id)
     if not op.exists() or not dp.exists():
