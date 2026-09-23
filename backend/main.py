@@ -96,7 +96,8 @@ app.add_middleware(
 _inference_lock = asyncio.Lock()
 
 
-@app.get("/")
+# Updated: Allows both GET and HEAD requests for Render Health Checks
+@app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {"status": "online", "message": "VISIONX Engine is running"}
 
@@ -170,7 +171,8 @@ def _perform_inference(filename: str, data: bytes) -> dict:
     }
 
 
-@app.get("/api/health")
+# Updated: Allows both GET and HEAD requests for Render Health Checks
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     svc = model_service.get_model_service()
     return {"status": "ok", "model_ready": svc.ready, "device": svc.device_name}
