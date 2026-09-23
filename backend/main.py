@@ -16,7 +16,6 @@ Endpoints:
 
 import asyncio
 import base64
-import gc
 import io
 import logging
 import os
@@ -25,15 +24,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import torch
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
-
-# Optimize CPU execution threads for constrained cloud instances
-torch.set_num_threads(2)
 
 # Load environment variables
 load_dotenv()
@@ -58,7 +53,7 @@ logger = logging.getLogger("visionx.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Non-blocking Lifespan handler: Allows Render Health Check to succeed instantly."""
+    """Modern Lifespan handler: Guarantees model is loaded before API receives traffic."""
     logger.info("=" * 60)
     logger.info("VISIONX Engine starting...")
     logger.info("=" * 60)
@@ -76,13 +71,13 @@ async def lifespan(app: FastAPI):
     image_service.ensure_dirs()
     history_store.init()
 
-    # Pre-initialize model service instance without blocking server bootup
+    # Direct synchronous model initialization on application start
+    logger.info("Loading PyTorch model weights...")
     svc = model_service.get_model_service()
-    try:
-        svc.initialize()
-        logger.info("VISIONX Engine model initialization completed.")
-    except Exception as e:
-        logger.warning("Model lazy initialization deferred or threw warning: %s", e)
+    if svc.initialize():
+        logger.info("VISIONX Engine model successfully loaded and ready.")
+    else:
+        logger.error("VISIONX Engine model initialization failed: %s", svc.last_error)
 
     yield
     logger.info("VISIONX Engine shutting down...")
@@ -101,8 +96,7 @@ app.add_middleware(
 _inference_lock = asyncio.Lock()
 
 
-# Healthcheck endpoints supporting GET & HEAD for Render Monitoring
-@app.api_route("/", methods=["GET", "HEAD"])
+@app.get("/")
 def read_root():
     return {"status": "online", "message": "VISIONX Engine is running"}
 
@@ -123,12 +117,10 @@ def _read_upload(file: UploadFile) -> tuple[str, bytes]:
 
 
 def _perform_inference(filename: str, data: bytes) -> dict:
-    """Run HRS-Net inference with strict RAM garbage collection."""
+    """Run HRS-Net inference and return metadata dict."""
     input_path = image_service.save_upload(filename, data)
     try:
-        # Disable PyTorch gradient graph to save memory
-        with torch.no_grad():
-            result = inference_pipeline.run(str(input_path))
+        result = inference_pipeline.run(str(input_path))
     except Exception as e:
         logger.exception("Inference error")
         raise HTTPException(status_code=500, detail=f"Inference failed: {type(e).__name__}: {e}")
@@ -155,7 +147,7 @@ def _perform_inference(filename: str, data: bytes) -> dict:
 
     metrics = analysis_service.compute_metrics(result["original"], result["derained"])
 
-    response_data = {
+    return {
         "success": True,
         "request_id": entry_id,
         "filename": filename,
@@ -177,14 +169,8 @@ def _perform_inference(filename: str, data: bytes) -> dict:
         "padded": result.get("padded", False),
     }
 
-    # Explicit memory cleanup to stay under Render 512MB RAM limit
-    del result
-    gc.collect()
 
-    return response_data
-
-
-@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.get("/api/health")
 def health():
     svc = model_service.get_model_service()
     return {"status": "ok", "model_ready": svc.ready, "device": svc.device_name}
@@ -259,11 +245,8 @@ async def analyze_restoration(file: UploadFile = File(...), derained_file: Uploa
         derained = Image.open(io.BytesIO(ddata)).convert("RGB")
     else:
         path = image_service.save_upload(filename, data)
-        with torch.no_grad():
-            result = inference_pipeline.run(str(path))
+        result = inference_pipeline.run(str(path))
         derained = result["derained"]
-        del result
-        gc.collect()
 
     residual = analysis_service.restoration_residual_map(original, derained)
     detail = analysis_service.detail_map(original, derained)
@@ -287,11 +270,8 @@ async def analyze_xray(file: UploadFile = File(...), derained_file: UploadFile =
         derained = Image.open(io.BytesIO(ddata)).convert("RGB")
     else:
         path = image_service.save_upload(filename, data)
-        with torch.no_grad():
-            result = inference_pipeline.run(str(path))
+        result = inference_pipeline.run(str(path))
         derained = result["derained"]
-        del result
-        gc.collect()
 
     detail = analysis_service.detail_map(original, derained)
     edge_o = analysis_service.edge_map(original)
@@ -317,11 +297,8 @@ async def analyze_objects(file: UploadFile = File(...), derained_file: UploadFil
         derained = Image.open(io.BytesIO(ddata)).convert("RGB")
     else:
         path = image_service.save_upload(filename, data)
-        with torch.no_grad():
-            result = inference_pipeline.run(str(path))
+        result = inference_pipeline.run(str(path))
         derained = result["derained"]
-        del result
-        gc.collect()
 
     regions = object_service.analyze_regions(original, derained)
     overlay = object_service.detection_fallback_overlay(derained)
@@ -348,11 +325,8 @@ async def vision_assistant(
         derained = Image.open(io.BytesIO(ddata)).convert("RGB")
     else:
         path = image_service.save_upload(filename, data)
-        with torch.no_grad():
-            result = inference_pipeline.run(str(path))
+        result = inference_pipeline.run(str(path))
         derained = result["derained"]
-        del result
-        gc.collect()
 
     answer = vision_service.answer_question(question, original, derained)
     summary = vision_service.summarize(original, derained)

@@ -1,7 +1,13 @@
 "use client";
 
+// Jab Localhost par chalaoge toh automatically localhost server le lega,
+// Render deployment par environment variable se Render backend lega.
+
+
+
+// Agar env variable blank pad gaya, toh default port 8000 target karo (localhost backend)
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "https://visionx-demo-8xgd.onrender.com"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 ).replace(/\/$/, "");
 
 export const API = API_BASE;
