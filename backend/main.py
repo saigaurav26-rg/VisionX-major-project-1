@@ -21,6 +21,9 @@ import logging
 import os
 import secrets
 import time
+import torch
+# Render single-core/multi-core CPU utilization optimize karne ke liye
+torch.set_num_threads(2)
 from contextlib import asynccontextmanager
 from pathlib import Path
 
