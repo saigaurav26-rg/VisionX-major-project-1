@@ -1,4 +1,3 @@
-Create a complete, professional, GitHub-ready README.md for my project called:
 
 VisionX: A Hybrid Deep Learning Framework for Image Restoration
 
