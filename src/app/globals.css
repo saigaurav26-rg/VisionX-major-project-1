@@ -45,43 +45,45 @@
   --color-visionx-foreground: var(--visionx-foreground);
 }
 
+/* ================= LIGHT MODE (:root) ================= */
 :root {
   --radius: 0.4rem;
-  --background: oklch(0.08 0 0);
-  --foreground: oklch(0.96 0.01 95);
-  --card: oklch(0.12 0 0);
-  --card-foreground: oklch(0.96 0.01 95);
-  --popover: oklch(0.12 0 0);
-  --popover-foreground: oklch(0.96 0.01 95);
-  --primary: oklch(0.86 0.16 95);
-  --primary-foreground: oklch(0.12 0 0);
-  --secondary: oklch(0.18 0 0);
-  --secondary-foreground: oklch(0.96 0.01 95);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.68 0.01 95);
-  --accent: oklch(0.22 0.03 95);
-  --accent-foreground: oklch(0.96 0.01 95);
-  --destructive: oklch(0.65 0.22 25);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.86 0.16 95);
-  --chart-1: oklch(0.86 0.16 95);
-  --chart-2: oklch(0.72 0.10 230);
-  --chart-3: oklch(0.70 0.14 145);
-  --chart-4: oklch(0.68 0.18 25);
-  --chart-5: oklch(0.78 0.08 80);
-  --sidebar: oklch(0.07 0 0);
-  --sidebar-foreground: oklch(0.96 0.01 95);
-  --sidebar-primary: oklch(0.86 0.16 95);
-  --sidebar-primary-foreground: oklch(0.12 0 0);
-  --sidebar-accent: oklch(0.16 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0.01 95);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.86 0.16 95);
-  --visionx: oklch(0.86 0.16 95);
-  --visionx-foreground: oklch(0.12 0 0);
+  --background: oklch(0.98 0.005 95);
+  --foreground: oklch(0.20 0.02 95);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.20 0.02 95);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.20 0.02 95);
+  --primary: oklch(0.68 0.18 85);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0.01 95);
+  --secondary-foreground: oklch(0.20 0.02 95);
+  --muted: oklch(0.94 0.01 95);
+  --muted-foreground: oklch(0.48 0.02 95);
+  --accent: oklch(0.92 0.02 95);
+  --accent-foreground: oklch(0.20 0.02 95);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0 0 0 / 12%);
+  --input: oklch(0 0 0 / 14%);
+  --ring: oklch(0.68 0.18 85);
+  --chart-1: oklch(0.68 0.18 85);
+  --chart-2: oklch(0.55 0.15 230);
+  --chart-3: oklch(0.50 0.16 145);
+  --chart-4: oklch(0.58 0.22 25);
+  --chart-5: oklch(0.65 0.12 80);
+  --sidebar: oklch(0.96 0.005 95);
+  --sidebar-foreground: oklch(0.20 0.02 95);
+  --sidebar-primary: oklch(0.68 0.18 85);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.92 0.02 95);
+  --sidebar-accent-foreground: oklch(0.20 0.02 95);
+  --sidebar-border: oklch(0 0 0 / 10%);
+  --sidebar-ring: oklch(0.68 0.18 85);
+  --visionx: oklch(0.68 0.18 85);
+  --visionx-foreground: oklch(0.98 0 0);
 }
 
+/* ================= DARK MODE (.dark) ================= */
 .dark {
   --background: oklch(0.07 0 0);
   --foreground: oklch(0.96 0.01 95);
@@ -142,29 +144,25 @@ nextjs-portal {
 
 .vx-grid-bg {
   background-image:
-    linear-gradient(oklch(1 0 0 / 4%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(1 0 0 / 4%) 1px, transparent 1px);
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 32px 32px;
   background-position: -1px -1px;
 }
 
 .vx-card-elevated {
-  background: linear-gradient(
-    180deg,
-    oklch(0.14 0 0 / 0.92) 0%,
-    oklch(0.09 0 0 / 0.92) 100%
-  );
+  background: var(--card);
   backdrop-filter: blur(12px);
 }
 
 .vx-glow {
   box-shadow:
-    0 0 0 1px oklch(0.86 0.16 95 / 0.22),
-    0 8px 28px -10px oklch(0.86 0.16 95 / 0.22);
+    0 0 0 1px var(--border),
+    0 8px 28px -10px var(--border);
 }
 
 .vx-text-gradient {
-  background: linear-gradient(135deg, oklch(0.95 0.12 95) 0%, oklch(0.78 0.16 85) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--foreground) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -224,16 +222,5 @@ nextjs-portal {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-html {
-  scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
   }
 }

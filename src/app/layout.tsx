@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { ThemeInitializer } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +20,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "VISIONX — Image Restoration Engine",
   description:
-    "VisionX restores rain-degraded images with a deep-learning deraining engine. Real PyTorch inference for single-image restoration.",
+    "VisionX restores rain-degraded images with a deep-learning deraining engine.",
 };
 
 export default function RootLayout({
@@ -28,15 +29,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
       >
-        <PreviewHostBridge />
-        <TooltipProvider delayDuration={120}>
-          <AppShell>{children}</AppShell>
-          <Toaster richColors theme="dark" position="top-right" />
-        </TooltipProvider>
+        <ThemeInitializer>
+          <PreviewHostBridge />
+          <TooltipProvider delayDuration={120}>
+            <AppShell>{children}</AppShell>
+            <Toaster richColors position="top-right" />
+          </TooltipProvider>
+        </ThemeInitializer>
       </body>
     </html>
   );

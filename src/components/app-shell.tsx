@@ -103,7 +103,7 @@ function SidebarNav({
     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
       {NAV_GROUPS.map((group) => (
         <div key={group.label}>
-          <div className="px-2 mb-2 text-[10px] font-mono uppercase tracking-[0.22em] text-white/35">
+          <div className="px-2 mb-2 text-[10px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
             {group.label}
           </div>
           <div className="space-y-0.5">
@@ -117,11 +117,11 @@ function SidebarNav({
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-sm border border-transparent transition-colors",
                     active
-                      ? "bg-yellow-400/10 text-yellow-300 border-yellow-400/25"
-                      : "text-white/65 hover:text-white hover:bg-white/5"
+                      ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-300 border-yellow-500/30 font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <item.icon className={cn("h-3.5 w-3.5", active ? "text-yellow-400" : "text-white/40")} />
+                  <item.icon className={cn("h-3.5 w-3.5", active ? "text-yellow-500 dark:text-yellow-400" : "text-muted-foreground")} />
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -141,34 +141,34 @@ function AppChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-white/10 bg-black/90 sticky top-0 h-screen">
-        <Link href="/" className="flex items-center gap-2.5 px-4 h-16 border-b border-white/10">
+      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-card sticky top-0 h-screen">
+        <Link href="/" className="flex items-center gap-2.5 px-4 h-16 border-b border-border">
           <div className="relative h-8 w-8 rounded-md bg-gradient-to-br from-yellow-500/90 to-yellow-600/60 flex items-center justify-center ring-1 ring-yellow-400/30">
             <CloudRain className="h-4 w-4 text-black" strokeWidth={2.5} />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="text-[15px] font-semibold tracking-tight text-white">VISIONX</span>
-            <span className="text-[10px] text-white/40 tracking-wider uppercase">Engine</span>
+            <span className="text-[15px] font-semibold tracking-tight text-foreground">VISIONX</span>
+            <span className="text-[10px] text-muted-foreground tracking-wider uppercase">Engine</span>
           </div>
         </Link>
         <SidebarNav pathname={pathname} search={search} />
-        <div className="px-4 py-3 border-t border-white/10 text-[10px] font-mono text-white/35">
+        <div className="px-4 py-3 border-t border-border text-[10px] font-mono text-muted-foreground">
           VisionX Engine
         </div>
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-        <header className="sticky top-0 z-40 h-16 border-b border-white/10 bg-black/90">
+        <header className="sticky top-0 z-40 h-16 border-b border-border bg-card/80 backdrop-blur-md">
           <div className="h-full px-4 lg:px-8 flex items-center gap-3">
             <button
-              className="lg:hidden p-2 text-white/70 hover:text-white"
+              className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
               onClick={() => setOpen(true)}
               aria-label="Open navigation"
             >
               <Menu className="h-5 w-5" />
             </button>
             <Link href="/" className="lg:hidden flex items-center gap-2">
-              <span className="text-sm font-semibold tracking-tight text-white">VISIONX</span>
+              <span className="text-sm font-semibold tracking-tight text-foreground">VISIONX</span>
             </Link>
             <div className="ml-auto flex items-center gap-3">
               <ModelStatusBadge />
@@ -179,14 +179,14 @@ function AppChrome({ children }: { children: React.ReactNode }) {
         {open && (
           <div className="lg:hidden fixed inset-0 z-50">
             <button
-              className="absolute inset-0 bg-black/70"
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
               aria-label="Close navigation"
               onClick={() => setOpen(false)}
             />
-            <aside className="relative h-full w-72 max-w-[85vw] bg-black border-r border-white/10 flex flex-col">
-              <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
-                <span className="text-sm font-semibold text-white">VISIONX</span>
-                <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 text-white/70">
+            <aside className="relative h-full w-72 max-w-[85vw] bg-card border-r border-border flex flex-col">
+              <div className="flex items-center justify-between h-16 px-4 border-b border-border">
+                <span className="text-sm font-semibold text-foreground">VISIONX</span>
+                <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 text-muted-foreground">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -197,14 +197,14 @@ function AppChrome({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t border-white/10">
-          <div className="px-4 lg:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-white/40">
+        <footer className="border-t border-border">
+          <div className="px-4 lg:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
             <div>VISIONX Engine — image restoration for rain-degraded vision</div>
             <a
               href="https://huggingface.co/NSG04/visionx-model"
               target="_blank"
               rel="noreferrer"
-              className="text-white/70 hover:text-yellow-400 underline-offset-2 hover:underline"
+              className="text-foreground/80 hover:text-yellow-500 underline-offset-2 hover:underline"
             >
               NSG04/visionx-model
             </a>
@@ -221,7 +221,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black">{children}</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-background">{children}</div>}>
       <AppChrome>{children}</AppChrome>
     </Suspense>
   );

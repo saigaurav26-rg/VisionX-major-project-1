@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Settings as SettingsIcon, Lock, Palette, Download, FileImage, Gauge } from "lucide-react";
 
 const KEY = "visionx.settings";
@@ -26,16 +25,35 @@ const DEFAULTS: Settings = {
 export default function SettingsPage() {
   const [s, setS] = useState<Settings>(DEFAULTS);
 
+  // HTML root element par theme apply karne ka helper
+  const applyTheme = (themeMode: "dark" | "light") => {
+    const root = document.documentElement;
+    if (themeMode === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  };
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) setS({ ...DEFAULTS, ...JSON.parse(raw) });
-    } catch {}
+      if (raw) {
+        const parsed = { ...DEFAULTS, ...JSON.parse(raw) };
+        setS(parsed);
+        applyTheme(parsed.theme);
+      } else {
+        applyTheme(DEFAULTS.theme);
+      }
+    } catch {
+      applyTheme(DEFAULTS.theme);
+    }
   }, []);
 
   const save = (next: Settings) => {
     setS(next);
     localStorage.setItem(KEY, JSON.stringify(next));
+    applyTheme(next.theme);
   };
 
   return (
@@ -50,14 +68,16 @@ export default function SettingsPage() {
 
       <Card className="border-border/60 bg-card/30">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4 text-primary" /> Theme</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Palette className="h-4 w-4 text-primary" /> Theme
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 text-sm">
           {(["dark", "light"] as const).map((t) => (
             <button
               key={t}
               onClick={() => save({ ...s, theme: t })}
-              className={`p-3 rounded-md border text-left ${
+              className={`p-3 rounded-md border text-left transition-colors ${
                 s.theme === t ? "border-primary/50 bg-primary/15" : "border-border/60 hover:border-border"
               }`}
             >
@@ -72,14 +92,16 @@ export default function SettingsPage() {
 
       <Card className="border-border/60 bg-card/30">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><FileImage className="h-4 w-4 text-primary" /> Output Format</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileImage className="h-4 w-4 text-primary" /> Output Format
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 text-sm">
           {(["PNG", "JPG"] as const).map((f) => (
             <button
               key={f}
               onClick={() => save({ ...s, outputFormat: f })}
-              className={`p-3 rounded-md border text-left ${
+              className={`p-3 rounded-md border text-left transition-colors ${
                 s.outputFormat === f ? "border-primary/50 bg-primary/15" : "border-border/60 hover:border-border"
               }`}
             >
@@ -94,7 +116,9 @@ export default function SettingsPage() {
 
       <Card className="border-border/60 bg-card/30">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Gauge className="h-4 w-4 text-primary" /> Restoration Strength Default</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-primary" /> Restoration Strength Default
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <input
@@ -115,14 +139,16 @@ export default function SettingsPage() {
 
       <Card className="border-border/60 bg-card/30">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Download className="h-4 w-4 text-primary" /> Comparison Default</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="h-4 w-4 text-primary" /> Comparison Default
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 text-sm">
           {(["slider", "side"] as const).map((m) => (
             <button
               key={m}
               onClick={() => save({ ...s, comparisonMode: m })}
-              className={`p-3 rounded-md border text-left ${
+              className={`p-3 rounded-md border text-left transition-colors ${
                 s.comparisonMode === m ? "border-primary/50 bg-primary/15" : "border-border/60 hover:border-border"
               }`}
             >
@@ -137,7 +163,9 @@ export default function SettingsPage() {
 
       <Card className="border-border/60 bg-card/30">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Lock className="h-4 w-4 text-muted-foreground" /> Model Configuration</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Lock className="h-4 w-4 text-muted-foreground" /> Model Configuration
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
