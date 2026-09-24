@@ -1,82 +1,79 @@
 """
-Vision Assistant service.
+Vision Assistant Service.
 
-Provides deterministic, image-derived summaries of the deraining result.
-Does not call any external VLM. Clearly labels responses as factual
-observations derived from the processed images.
+Uses Gemini Vision-Language Model (VLM) to provide natural, 
+human-friendly visual reasoning for user questions.
 """
 
+import os
 from PIL import Image
-import numpy as np
+from google import genai
+from google.genai import types
 
-from backend.services.analysis_service import compute_metrics
+# Load API key from environment
+api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key) if api_key else None
 
+# Active Flash model name as requested by Google API
+MODEL_NAME = "gemini-3.6-flash"
 
-def _luma(arr: np.ndarray) -> np.ndarray:
-    return 0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]
+SYSTEM_INSTRUCTION = """
+You are VisionX, an expert Vision-Language Assistant.
+You will be provided with two images: 
+1. The Original Image (with distortion like rain/noise).
+2. The Restored Image (processed result).
 
-
-def _to_array(img: Image.Image) -> np.ndarray:
-    return np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+Your goal:
+- Answer the user's question about the image in plain, natural, friendly human language.
+- Explain visual details, clarity improvements, and objects accurately.
+- DO NOT output raw mathematical/statistical metrics (e.g., edge density, mean absolute difference, frequency numbers) unless the user specifically asks for scientific numbers.
+- Keep responses concise, helpful, and conversational.
+"""
 
 
 def summarize(original: Image.Image, derained: Image.Image) -> str:
-    """Generate a factual observation summary."""
-    metrics = compute_metrics(original, derained)
-    a = _to_array(original)
-    b = _to_array(derained)
-    la = float(_luma(a).mean())
-    lb = float(_luma(b).mean())
-    diff = np.abs(a - b).mean(axis=2)
-    high_change = float((diff > 0.05).mean())
-    return (
-        f"Factual observation: average per-pixel change is {metrics['mean_abs_difference']} "
-        f"on a 0-1 scale. Approximately {high_change:.1%} of pixels show noticeable change. "
-        f"Mean luminance changed from {la:.3f} to {lb:.3f} "
-        f"(change {lb - la:+.3f}). This is an analytical summary, not a subjective assessment."
-    )
+    """Generate a natural VLM summary comparing original and restored images."""
+    if not client:
+        return "Gemini API key missing. Please configure GEMINI_API_KEY in backend/.env file."
+
+    prompt = "Describe the visual improvements in the restored image compared to the original image in 2 simple sentences."
+
+    try:
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[
+                "Original Image:", original,
+                "Restored Image:", derained,
+                prompt
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                temperature=0.3
+            )
+        )
+        return response.text.strip()
+    except Exception as e:
+        return f"Error generating summary: {str(e)}"
 
 
 def answer_question(question: str, original: Image.Image, derained: Image.Image) -> str:
-    """Answer a user's question using only factual pixel-derived information."""
-    q = question.lower().strip()
-    metrics = compute_metrics(original, derained)
-    a = _to_array(original)
-    b = _to_array(derained)
-    la = float(_luma(a).mean())
-    lb = float(_luma(b).mean())
-    diff = np.abs(a - b).mean(axis=2)
-    high_change = float((diff > 0.05).mean())
+    """Answer user questions using real VLM reasoning on image pairs."""
+    if not client:
+        return "Gemini API key missing. Please set GEMINI_API_KEY in backend/.env file."
 
-    if any(k in q for k in ["change", "what changed", "difference"]):
-        return (
-            f"Factual observation: pixel-level mean absolute difference is "
-            f"{metrics['mean_abs_difference']}. About {high_change:.1%} of pixels changed noticeably. "
-            f"Edge density changed from {metrics['edge_density_before']} to {metrics['edge_density_after']}."
+    try:
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[
+                "Original Image:", original,
+                "Restored Image:", derained,
+                f"User Question: {question}"
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                temperature=0.4
+            )
         )
-    if any(k in q for k in ["clear", "sharper", "visible"]):
-        return (
-            f"Factual observation: local edge density {'increased' if float(metrics['edge_density_change']) > 0 else 'decreased'} "
-            f"by {float(metrics['edge_density_change']):+.4f} after deraining. "
-            f"{'Restored image appears to expose more high-frequency content.' if float(metrics['edge_density_change']) > 0 else 'Restored image shows smoother high-frequency regions.'}"
-        )
-    if "rain" in q:
-        return (
-            f"Factual observation: residual-map analysis shows pixel deviations in "
-            f"{high_change:.1%} of pixels. This is an estimated residual/rain visualization, "
-            f"not a precise rain-segmentation mask."
-        )
-    if "compare" in q or "vs" in q or "versus" in q:
-        return (
-            f"Factual observation: original mean luma={la:.3f}, derained mean luma={lb:.3f}. "
-            f"Mean absolute pixel difference: {metrics['mean_abs_difference']}. "
-            f"Edge density: before={metrics['edge_density_before']}, after={metrics['edge_density_after']}."
-        )
-    if any(k in q for k in ["object", "subject", "thing", "people", "car", "building"]):
-        return (
-            "I do not perform generic object detection in this mode. "
-            "For region-level comparison between the original and derained images, "
-            "use the Object Analysis panel."
-        )
-    # Default summary
-    return summarize(original, derained)
+        return response.text.strip()
+    except Exception as e:
+        return f"An error occurred while analyzing the image: {str(e)}"

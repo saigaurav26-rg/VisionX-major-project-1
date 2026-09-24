@@ -149,6 +149,8 @@ export function Footer() {
           <ScrollReveal delay={500}>
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/40">
               <p>© 2026 VisionX. Image restoration engine for rain-degraded vision.</p>
+              <p className="mt-1 text-white/60">
+                  Developed by <span className="text-white font-medium"> N.SAI GAURAV, BHASKAR SAHU (CPP104)</span></p>
               <div className="flex items-center gap-4">
                 <a href="https://huggingface.co/NSG04/visionx-model" target="_blank" rel="noreferrer" className="hover:text-white transition-colors flex items-center gap-1">
                   <ExternalLink className="h-3 w-3" />

@@ -64,10 +64,10 @@ export function Hero() {
       <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 lg:px-8 py-16 lg:py-24">
         <div className="text-center">
           <ScrollReveal delay={40}>
-            <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-yellow-400/90 mb-6">
+            {/* <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-yellow-400/90 mb-6"> */}
               <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
-              AI-POWERED IMAGE RESTORATION
-            </span>
+              {/* AI-POWERED IMAGE RESTORATION */}
+            {/* </span> */}
           </ScrollReveal>
 
           <ScrollReveal delay={80}>
