@@ -1,3 +1,20 @@
+# Dependencies
 node_modules/
-.next/
 
+# Next.js build output
+.next/
+out/
+
+# Environment variables & API keys (VERY IMPORTANT)
+.env
+.env*.local
+backend/.env
+
+# Python bytecode & cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Uploaded / Generated runtime files
+uploads/
+outputs/
